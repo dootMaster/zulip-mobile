@@ -49,7 +49,7 @@ export default function HomeScreen(props: Props): Node {
             dispatch(doNarrow(HOME_NARROW));
           }}
         >
-          <IconAllMessages size={24} style={{ textAlign: 'center', transform: [{ scaleY: -1}] }} color={BRAND_COLOR} />
+          <IconAllMessages size={24} style={{ textAlign: 'center', transform: [{ scaleY: -1 }] }} color={BRAND_COLOR} />
         </TopTabButtonGeneral>
         <TopTabButton
           name="star"

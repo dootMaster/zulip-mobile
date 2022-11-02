@@ -18,10 +18,7 @@ import LoadingBanner from '../common/LoadingBanner';
 import ServerCompatBanner from '../common/ServerCompatBanner';
 import ServerPushSetupBanner from '../common/ServerPushSetupBanner';
 import { IconAllMessages } from '../common/Icons';
-<<<<<<< HEAD
 import { OfflineNoticePlaceholder } from '../boot/OfflineNoticeProvider';
-=======
->>>>>>> 16fda3eec (formatting)
 
 const styles = createStyleSheet({
   wrapper: {

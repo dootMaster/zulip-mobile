@@ -8,6 +8,7 @@
  * convenience -- but we're generally pretty consistent about it.
  */
 
+import fetchServerEmojiData from './fetchServerEmojiData';
 import queueMarkAsRead from './queueMarkAsRead';
 import checkCompatibility from './checkCompatibility';
 import devFetchApiKey from './devFetchApiKey';
@@ -29,6 +30,7 @@ import deleteMessage from './messages/deleteMessage';
 import deleteTopic from './messages/deleteTopic';
 import getRawMessageContent from './messages/getRawMessageContent';
 import getMessages from './messages/getMessages';
+import getSingleMessage from './messages/getSingleMessage';
 import getMessageHistory from './messages/getMessageHistory';
 import messagesFlags from './messages/messagesFlags';
 import sendMessage from './messages/sendMessage';
@@ -53,8 +55,10 @@ import createUser from './users/createUser';
 import getUserProfile from './users/getUserProfile';
 import updateUserStatus from './users/updateUserStatus';
 import getFileTemporaryUrl from './messages/getFileTemporaryUrl';
+import getReadReceipts from './messages/getReadReceipts';
 
 export {
+  fetchServerEmojiData,
   queueMarkAsRead,
   checkCompatibility,
   devFetchApiKey,
@@ -76,6 +80,7 @@ export {
   deleteTopic,
   getRawMessageContent,
   getMessages,
+  getSingleMessage,
   getMessageHistory,
   messagesFlags,
   sendMessage,
@@ -100,4 +105,5 @@ export {
   getUserProfile,
   updateUserStatus,
   getFileTemporaryUrl,
+  getReadReceipts,
 };

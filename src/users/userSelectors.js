@@ -13,6 +13,7 @@ import type { RealmState } from '../reduxTypes';
 import { getUsers, getCrossRealmBots, getNonActiveUsers } from '../directSelectors';
 import * as logging from '../utils/logging';
 import { ensureUnreachable } from '../generics';
+import { EmailAddressVisibility } from '../api/permissionsTypes';
 
 /**
  * All users in this Zulip org (aka realm).
@@ -204,9 +205,10 @@ function interpretCustomProfileField(
     //   https://chat.zulip.org/#narrow/stream/378-api-design/topic/custom.20profile.20fields/near/1387379
 
     case 1: // CustomProfileFieldType.ShortText
+    case 8: // CustomProfileFieldType.Pronouns
     case 2: // CustomProfileFieldType.LongText
-      // The web client appears to treat these two cases identically.
-      // So we do the same.
+      // The web client appears to treat LongText identically to ShortText.
+      // Pronouns is explicitly meant to display the same as ShortText.
       return { displayType: 'text', text: value };
 
     case 3: {
@@ -285,8 +287,17 @@ export function getCustomProfileFieldsForUser(
   //   the order they appear in the array (`custom_profile_fields` in the
   //   API; our `realmFields` array here.)  See chat thread:
   //     https://chat.zulip.org/#narrow/stream/378-api-design/topic/custom.20profile.20fields/near/1382982
+  //
+  // We go on to put at the start of the list any fields that are marked for
+  // displaying in the "profile summary".  (Possibly they should be at the
+  // start of the list in the first place, but make sure just in case.)
+  const sortedRealmFields = [
+    ...realmFields.filter(f => f.display_in_profile_summary),
+    ...realmFields.filter(f => !f.display_in_profile_summary),
+  ];
+
   const fields = [];
-  for (const realmField of realmFields) {
+  for (const realmField of sortedRealmFields) {
     const value = interpretCustomProfileField(
       realmDefaultExternalAccounts,
       realmField,
@@ -297,4 +308,22 @@ export function getCustomProfileFieldsForUser(
     }
   }
   return fields;
+}
+
+/**
+ * The given user's real email address, if known, for displaying in the UI.
+ *
+ * Null if our user isn't able to see this user's real email address.
+ */
+export function getDisplayEmailForUser(realm: RealmState, user: UserOrBot): string | null {
+  if (user.delivery_email !== undefined) {
+    return user.delivery_email;
+  } else if (realm.emailAddressVisibility === EmailAddressVisibility.Everyone) {
+    // On future servers, we expect this case will never happen: we'll always include
+    // a delivery_email when you have access, including when the visibility is Everyone
+    // https://github.com/zulip/zulip-mobile/pull/5515#discussion_r997731727
+    return user.email;
+  } else {
+    return null;
+  }
 }

@@ -6,10 +6,12 @@ import {
   getUserForId,
   getUserIsActive,
   getCustomProfileFieldsForUser,
+  getDisplayEmailForUser,
 } from '../userSelectors';
 import * as eg from '../../__tests__/lib/exampleData';
 import { CustomProfileFieldType } from '../../api/modelTypes';
 import { randInt, randString } from '../../utils/misc';
+import { EmailAddressVisibility } from '../../api/permissionsTypes';
 
 describe('getAllUsersByEmail', () => {
   test('return users mapped by their email', () => {
@@ -247,6 +249,36 @@ describe('getCustomProfileFieldsForUser', () => {
     ]);
   });
 
+  test('put highlighted fields first', () => {
+    expect(
+      getCustomProfileFieldsForUser(
+        mkRealm([
+          { id: 1, name: 'name one', type: CustomProfileFieldType.ShortText },
+          {
+            id: 2,
+            name: 'name two',
+            type: CustomProfileFieldType.ShortText,
+          },
+          {
+            id: 3,
+            name: 'name three',
+            type: CustomProfileFieldType.ShortText,
+            display_in_profile_summary: true,
+          },
+        ]),
+        mkUser({
+          '1': { value: 'value one' },
+          '2': { value: 'value two' },
+          '3': { value: 'value three' },
+        }),
+      ),
+    ).toEqual([
+      { fieldId: 3, name: 'name three', value: { displayType: 'text', text: 'value three' } },
+      { fieldId: 1, name: 'name one', value: { displayType: 'text', text: 'value one' } },
+      { fieldId: 2, name: 'name two', value: { displayType: 'text', text: 'value two' } },
+    ]);
+  });
+
   test('omit unset fields', () => {
     expect(
       getCustomProfileFieldsForUser(
@@ -258,5 +290,47 @@ describe('getCustomProfileFieldsForUser', () => {
         mkUser({ '1': { value: 'value one' }, '3': { value: 'value three' } }),
       ),
     ).toMatchObject([{ fieldId: 1 }, { fieldId: 3 }]);
+  });
+});
+
+describe('getDisplayEmailForUser', () => {
+  const mkUser = fields => ({ ...eg.otherUser, ...fields });
+
+  test('visibility is admin, no delivery_email', () => {
+    const realm = eg.realmState({ emailAddressVisibility: EmailAddressVisibility.Admins });
+    // eslint-disable-next-line no-unused-vars
+    const { delivery_email, ...user } = eg.otherUser;
+    expect(getDisplayEmailForUser(realm, user)).toBeNull();
+  });
+
+  test('email visibility is everyone, no delivery_email', () => {
+    const realm = eg.realmState({ emailAddressVisibility: EmailAddressVisibility.Everyone });
+    // eslint-disable-next-line no-unused-vars
+    const { delivery_email, ...user } = eg.otherUser;
+    expect(getDisplayEmailForUser(realm, user)).toEqual(eg.otherUser.email);
+  });
+
+  test('email visibility is everyone, delivery_email is null', () => {
+    const realm = eg.realmState({ emailAddressVisibility: EmailAddressVisibility.Everyone });
+    const user = mkUser({ delivery_email: null });
+    expect(getDisplayEmailForUser(realm, user)).toBeNull();
+  });
+
+  test('email visibility is everyone, delivery_email is set', () => {
+    const realm = eg.realmState({ emailAddressVisibility: EmailAddressVisibility.Everyone });
+    const user = mkUser({
+      delivery_email: 'delivery_email@example.org',
+      email: 'other@example.org',
+    });
+    expect(getDisplayEmailForUser(realm, user)).toEqual('delivery_email@example.org');
+  });
+
+  test('email visibility is admins, delivery_email is set', () => {
+    const realm = eg.realmState({ emailAddressVisibility: EmailAddressVisibility.Admins });
+    const user = mkUser({
+      delivery_email: 'delivery_email@example.org',
+      email: 'other@example.org',
+    });
+    expect(getDisplayEmailForUser(realm, user)).toEqual('delivery_email@example.org');
   });
 });

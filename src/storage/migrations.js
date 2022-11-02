@@ -371,12 +371,16 @@ const migrationsInner: {| [string]: (LessPartialState) => LessPartialState |} = 
   // Handle explicitly the migrations above (before 30, 34, 36, and this
   // one) that were done implicitly by the behavior of `autoRehydrate` on a
   // REHYDRATE action.
+  /* $FlowIgnore[prop-missing]: `doNotMarkMessagesAsRead` renamed to
+     `markMessagesReadOnScroll` in 52 */
   '37': state => ({
     // This handles the migrations affecting RealmState, before 34, 36, and here.
     ...dropCache(state),
     // Handle the migration before 30.
     settings: {
       ...state.settings,
+      /* $FlowIgnore[prop-missing]: `doNotMarkMessagesAsRead` renamed to
+         `markMessagesReadOnScroll` in 52 */
       doNotMarkMessagesAsRead: state.settings.doNotMarkMessagesAsRead ?? false,
     },
   }),
@@ -439,6 +443,31 @@ const migrationsInner: {| [string]: (LessPartialState) => LessPartialState |} = 
 
   // Add allowEditHistory to state.realm.
   '50': dropCache,
+
+  // Add serverEmojiData to state.realm.
+  '51': dropCache,
+
+  // Change boolean doNotMarkMessagesAsRead to enum markMessagesReadOnScroll
+  '52': state => {
+    // $FlowIgnore[prop-missing]
+    const { doNotMarkMessagesAsRead, ...restSettings } = state.settings;
+    return {
+      ...state,
+      settings: {
+        ...restSettings,
+        markMessagesReadOnScroll: (doNotMarkMessagesAsRead: boolean) ? 'never' : 'always',
+      },
+    };
+  },
+
+  // Add enableReadReceipts to state.realm.
+  '53': dropCache,
+
+  // Add emailAddressVisibility to state.realm
+  '54': dropCache,
+
+  // Drop old never-used message flags from state.flags.
+  '55': dropCache,
 
   // TIP: When adding a migration, consider just using `dropCache`.
   //   (See its jsdoc for guidance on when that's the right answer.)

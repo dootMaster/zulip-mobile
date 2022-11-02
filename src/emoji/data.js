@@ -1,35 +1,135 @@
 /* @flow strict-local */
 import * as typeahead from '@zulip/shared/js/typeahead';
+import { defaultMemoize } from 'reselect';
 
-import type { EmojiType, ReactionType, EmojiForShared } from '../types';
-import { objectFromEntries } from '../jsBackport';
+import * as api from '../api';
+import * as logging from '../utils/logging';
+import type {
+  ThunkAction,
+  PerAccountAction,
+  ServerEmojiData,
+  EmojiType,
+  ReactionType,
+  EmojiForShared,
+} from '../types';
+import { tryParseUrl } from '../utils/url';
+import { REFRESH_SERVER_EMOJI_DATA } from '../actionConstants';
 import { unicodeCodeByName, override } from './codePointMap';
 import zulipExtraEmojiMap from './zulipExtraEmojiMap';
-import { objectEntries } from '../flowPonyfill';
+import { objectEntries, objectValues } from '../flowPonyfill';
+import { tryFetch } from '../message/fetchActions';
+import { TimeoutError } from '../utils/async';
 
-const unicodeEmojiNames = Object.keys(unicodeCodeByName);
+const refreshServerEmojiData = (data: ServerEmojiData): PerAccountAction => ({
+  type: REFRESH_SERVER_EMOJI_DATA,
+  data,
+});
 
-const unicodeEmojiObjects: $ReadOnlyArray<EmojiForShared> = objectEntries(unicodeCodeByName).map(
-  ([name, code]) => ({
-    emoji_type: 'unicode',
-    emoji_name: name,
-    emoji_code: code,
-  }),
-);
+export const maybeRefreshServerEmojiData =
+  (server_emoji_data_url: string | void): ThunkAction<Promise<void>> =>
+  async (dispatch, getState) => {
+    if (server_emoji_data_url === undefined) {
+      // The server is too old to support this feature.
+      // TODO(server-6.0): Simplify away; should always be present.
+      return;
+    }
+    const parsedUrl = tryParseUrl(server_emoji_data_url);
+    if (!parsedUrl) {
+      logging.error('Invalid URL at server_emoji_data_url in /register response');
+      return;
+    }
 
-export const parseUnicodeEmojiCode = (code: string): string /* force line */ =>
+    let data = undefined;
+    try {
+      data = await tryFetch(() => api.fetchServerEmojiData(parsedUrl), true);
+    } catch (errorIllTyped) {
+      const e: mixed = errorIllTyped; // https://github.com/facebook/flow/issues/2470
+
+      if (!(e instanceof Error)) {
+        logging.error('Unexpected non-error thrown from api.fetchServerEmojiData');
+        return;
+      }
+
+      if (e instanceof TimeoutError) {
+        // Probably not a bug in client code; no need to log. Bad Internet
+        // connection, probably, or the server's been giving 5xx errors,
+        // which server admins should track.
+        return;
+      }
+
+      // Likely client bug.
+      logging.error(e);
+      return;
+    }
+
+    dispatch(refreshServerEmojiData(data));
+  };
+
+const getUnicodeEmojiObjects = (
+  serverEmojiData: ServerEmojiData | null,
+): $ReadOnlyArray<EmojiForShared> => {
+  if (!serverEmojiData) {
+    return objectEntries(unicodeCodeByName).map(([name, code]) => ({
+      emoji_type: 'unicode',
+      emoji_name: name,
+      emoji_code: code,
+    }));
+  }
+
+  const result = [];
+  for (const [code, names] of serverEmojiData.code_to_names.entries()) {
+    result.push(
+      ...names.map(name => ({
+        emoji_type: 'unicode',
+        emoji_name: name,
+        emoji_code: code,
+      })),
+    );
+  }
+  return result;
+};
+
+const getUnicodeEmojiObjectsMemoized = defaultMemoize(getUnicodeEmojiObjects);
+
+/**
+ * Convert a Unicode emoji's `emoji_code` into the actual Unicode codepoints.
+ */
+// Implemented to follow the comment on emoji_code in
+//   https://github.com/zulip/zulip/blob/main/zerver/models.py :
+//
+// > * For Unicode emoji, [emoji_code is] a dash-separated hex encoding of
+// >   the sequence of Unicode codepoints that define this emoji in the
+// >   Unicode specification.  For examples, see "non_qualified" or
+// >   "unified" in the following data, with "non_qualified" taking
+// >   precedence when both present:
+// >   https://raw.githubusercontent.com/iamcal/emoji-data/master/emoji_pretty.json
+const parseUnicodeEmojiCode = (code: string): string /* force line */ =>
   code
     .split('-')
     .map(hex => String.fromCodePoint(parseInt(hex, 16)))
     .join('');
 
-export const codeToEmojiMap: {| [string]: string |} = objectFromEntries<string, string>(
-  unicodeEmojiNames.map(name => {
-    const code = unicodeCodeByName[name];
-    const displayCode = override[code] || code;
-    return [code, parseUnicodeEmojiCode(displayCode)];
-  }),
-);
+export const availableUnicodeEmojiCodes: Set<string> = new Set(objectValues(unicodeCodeByName));
+
+const applyOverride = (code: string): string => override[code] ?? code;
+
+/**
+ * From a Unicode emoji's `emoji_code`, give the actual character, like ✅.
+ *
+ * If the character isn't found, falls back to '?'.
+ */
+export const displayCharacterForUnicodeEmojiCode = (
+  code: string,
+  serverEmojiData: ServerEmojiData | null,
+): string => {
+  if (serverEmojiData?.code_to_names.has(code)) {
+    return parseUnicodeEmojiCode(applyOverride(code));
+  } else if (availableUnicodeEmojiCodes.has(code)) {
+    return parseUnicodeEmojiCode(applyOverride(code));
+  } else {
+    return '?';
+  }
+};
 
 // TODO(?): Stop having distinct `EmojiType` and `ReactionType`; confusing?
 //   https://github.com/zulip/zulip-mobile/pull/5269#discussion_r818320669
@@ -58,11 +158,12 @@ export const emojiTypeFromReactionType = (reactionType: ReactionType): EmojiType
 export const getFilteredEmojis = (
   query: string,
   activeImageEmoji: $ReadOnlyArray<EmojiForShared>,
+  serverEmojiData: ServerEmojiData | null,
 ): $ReadOnlyArray<EmojiForShared> => {
   const matcher = typeahead.get_emoji_matcher(query);
   const allMatchingEmoji: Map<string, EmojiForShared> = new Map();
 
-  for (const emoji of unicodeEmojiObjects) {
+  for (const emoji of getUnicodeEmojiObjectsMemoized(serverEmojiData)) {
     // TODO(shared): Use shared version of this feature too, once it exists.
     //   See PR: https://github.com/zulip/zulip/pull/21778
     //   and issue: https://github.com/zulip/zulip/issues/21714

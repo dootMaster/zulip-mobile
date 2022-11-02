@@ -40,6 +40,80 @@ It doesn't include
 ## Unreleased
 
 
+## 27.192 (2022-10-21)
+
+### Highlights for users
+
+* Support for upcoming Zulip Server 6 features:
+  * We now show the "Pronouns" custom profile field. (#5517)
+  * You can now see who has read a message, subject to privacy settings
+    (https://zulip.com/help/read-receipts). (#5367)
+* A link to a message no longer breaks when the message is moved or its
+  topic is resolved/unresolved. (#5306)
+* (iOS) Fixed a bug with the position of the no-Internet notice. (#5491)
+
+Plus, like every release, other fixes and improvements for your Zulip
+experience.
+
+
+### Highlights for developers
+
+* Converted many React class components to function components. (#5509)
+
+* Resolved issues: #5367, #5517, #5306, #5363
+
+
+## 27.191 (2022-09-06)
+
+### Highlights for users
+
+* The "Mark messages as read on scroll" setting has a new option: "Only in
+  conversation views". (#5241)
+
+Plus, like every release, other fixes and improvements for your Zulip
+experience.
+
+
+### Highlights for developers
+
+* We now respect new servers' "mark as unread" events. (#5361)
+
+* For the set of available Unicode emoji, we now use the new
+  `server_emoji_data_url`, present in the `/register` response since server
+  feature level 140. (PR #5460, PR #5464)
+
+* Updated confirmation dialogs to better align with the web app. (PR #5439)
+
+* Upgraded to Expo SDK 44! (PR #5441)
+
+* Enabled `react-native-screens`. (#4111)
+
+* Enabled a new Flow feature: enums! (PR #5444)
+
+* Continued to develop our `tsflower` workflow. (PRs #5442, #5478)
+
+* Added "fastlane" metadata, used by F-Droid. (PR #5462)
+
+* Resolved issues: #5241, #5444, #5439, #5411, #5464, #5462, #5448, #5361,
+  #4111, #5424, #5431, #5435
+
+
+## 27.190 (2022-08-23)
+
+### Highlights for users
+
+* Fixed an issue where a crafted, malformed image link in a message
+  sent by an authenticated user could lead to credential disclosure if
+  a user taps on the image to expand it.  (CVE-2022-35962)
+
+This issue was discovered internally by the Zulip developers.  We
+analyzed all message history on Zulip Cloud and determined it has
+never been exploited there.
+
+Zulip server administrators should also upgrade to Zulip Server 5.6 or
+later, to make this issue impossible to exploit on their servers.
+
+
 ## 27.189 (2022-07-01)
 
 ### Highlights for users

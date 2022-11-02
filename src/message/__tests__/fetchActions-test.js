@@ -15,7 +15,7 @@ import {
   tryFetch,
 } from '../fetchActions';
 import { FIRST_UNREAD_ANCHOR } from '../../anchor';
-import type { ServerMessage } from '../../api/messages/getMessages';
+import type { FetchedMessage } from '../../api/rawModelTypes';
 import { streamNarrow, HOME_NARROW, HOME_NARROW_STR, keyFromNarrow } from '../../utils/narrow';
 import { GravatarURL } from '../../utils/avatar';
 import * as eg from '../../__tests__/lib/exampleData';
@@ -242,8 +242,8 @@ describe('fetchActions', () => {
     // own transformations.
     //
     // TODO: Deduplicate this logic with similar logic in
-    // migrateMessages-test.js.
-    const serverMessage1: ServerMessage = {
+    // rawModelTypes-test.js.
+    const fetchedMessage1: FetchedMessage = {
       ...message1,
       reactions: [],
       avatar_url: null, // Null in server data will be transformed to a GravatarURL
@@ -263,7 +263,7 @@ describe('fetchActions', () => {
     describe('success', () => {
       beforeEach(() => {
         const response = {
-          messages: [serverMessage1],
+          messages: [fetchedMessage1],
           result: 'success',
         };
         // $FlowFixMe[prop-missing]: See mock in jest/globalFetch.js.
@@ -353,21 +353,13 @@ describe('fetchActions', () => {
       });
 
       test("rejects when validation-at-the-edge can't handle data, dispatches MESSAGE_FETCH_ERROR", async () => {
-        // This validation is done in `migrateMessages`.
+        // This validation is done in transformFetchedMessages in
+        // rawModelTypes.
         //
-        // TODO: See if we can mock `migrateMessages` to throw an
-        // error unconditionally. We don't want to care specifically
-        // how the data is malformed. Making this mock isn't
-        // straightforward, in part because Jest wants you to mock
-        // entire modules. `migrateMessages`'s caller is in the
-        // same file as `migrateMessages`; it doesn't import it. So we
-        // can't intercept such an import and have it give amock.
-        //
-        // For now, we simulate #4156, a real-life problem that a user
-        // at server commit 0af2f9d838 ran into [1], by having
-        // `user` be missing on reactions on a message.
-        //
-        // [1] https://github.com/zulip/zulip-mobile/issues/4156#issuecomment-655905093
+        // Simulate #4156, a real-life problem that a user at server commit
+        // 0af2f9d838 ran into [1], by having `user` be missing on reactions
+        // on a message:
+        //   https://github.com/zulip/zulip-mobile/issues/4156#issuecomment-655905093
         const store = mockStore<GlobalState, Action>(baseState);
 
         // Missing `user` (and `user_id`, for good measure), to
@@ -382,7 +374,7 @@ describe('fetchActions', () => {
           // Flow would complain at `faultyReaction` if it
           // type-checked `response`, but we should ignore it if that
           // day comes. It's badly shaped on purpose.
-          messages: [{ ...serverMessage1, reactions: [faultyReaction] }],
+          messages: [{ ...fetchedMessage1, reactions: [faultyReaction] }],
           result: 'success',
         };
         // $FlowFixMe[prop-missing]: See mock in jest/globalFetch.js.

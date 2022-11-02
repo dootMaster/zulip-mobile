@@ -3,18 +3,17 @@
 import type { Stream } from '../../types';
 import { streamNarrow, topicNarrow, pmNarrowFromUsersUnsafe, STARRED_NARROW } from '../narrow';
 import {
-  isInternalLink,
-  isMessageLink,
+  isNarrowLink,
   getLinkType,
   getNarrowFromLink,
-  getMessageIdFromLink,
+  getNearOperandFromLink,
   decodeHashComponent,
 } from '../internalLinks';
 import * as eg from '../../__tests__/lib/exampleData';
 
 const realm = new URL('https://example.com');
 
-describe('isInternalLink', () => {
+describe('isNarrowLink', () => {
   const cases: $ReadOnlyArray<[boolean, string, string] | [boolean, string, string, URL]> = [
     [true, 'fragment-only, to a narrow', '#narrow/stream/jest/topic/topic1'],
     [false, 'fragment-only, wrong fragment', '#nope'],
@@ -162,21 +161,14 @@ describe('isInternalLink', () => {
      realm_ is URL | void, but complains of out-of-bounds access */
   for (const [expected, description, url, realm_] of cases) {
     test(`${expected ? 'accept' : 'reject'} ${description}: ${url}`, () => {
-      expect(isInternalLink(url, realm_ ?? realm)).toBe(expected);
+      expect(isNarrowLink(url, realm_ ?? realm)).toBe(expected);
     });
   }
 });
 
-describe('isMessageLink', () => {
-  test('only in-app link containing "near/<message-id>" is a message link', () => {
-    expect(isMessageLink('https://example.com/#narrow/stream/jest', realm)).toBe(false);
-    expect(isMessageLink('https://example.com/#narrow/#near/1', realm)).toBe(true);
-  });
-});
-
 describe('getLinkType', () => {
-  test('links to a different domain are of "external" type', () => {
-    expect(getLinkType('https://google.com/some-path', realm)).toBe('external');
+  test('links to a different domain are of "non-narrow" type', () => {
+    expect(getLinkType('https://google.com/some-path', realm)).toBe('non-narrow');
   });
 
   test('only in-app link containing "stream" is a stream link', () => {
@@ -426,20 +418,25 @@ describe('getNarrowFromLink', () => {
   });
 });
 
-describe('getMessageIdFromLink', () => {
+describe('getNearOperandFromLink', () => {
   test('not message link', () => {
-    expect(getMessageIdFromLink('https://example.com/#narrow/is/private', realm)).toBe(0);
+    expect(getNearOperandFromLink('https://example.com/#narrow/is/private', realm)).toBe(null);
+    expect(getNearOperandFromLink('https://example.com/#narrow/stream/jest', realm)).toBe(null);
+  });
+
+  test('`near` is the only operator', () => {
+    expect(getNearOperandFromLink('https://example.com/#narrow/near/1', realm)).toBe(1);
   });
 
   test('when link is a group link, return anchor message id', () => {
     expect(
-      getMessageIdFromLink('https://example.com/#narrow/pm-with/1,3-group/near/1/', realm),
+      getNearOperandFromLink('https://example.com/#narrow/pm-with/1,3-group/near/1/', realm),
     ).toBe(1);
   });
 
   test('when link is a topic link, return anchor message id', () => {
     expect(
-      getMessageIdFromLink('https://example.com/#narrow/stream/jest/topic/test/near/1', realm),
+      getNearOperandFromLink('https://example.com/#narrow/stream/jest/topic/test/near/1', realm),
     ).toBe(1);
   });
 });

@@ -8,6 +8,7 @@ import type {
 import {
   CreatePublicOrPrivateStreamPolicy,
   CreateWebPublicStreamPolicy,
+  EmailAddressVisibility,
 } from '../api/permissionsTypes';
 import { EventTypes } from '../api/eventTypes';
 import {
@@ -19,6 +20,7 @@ import {
   EVENT,
   EVENT_UPDATE_DISPLAY_SETTINGS,
   EVENT_REALM_FILTERS,
+  REFRESH_SERVER_EMOJI_DATA,
 } from '../actionConstants';
 import { objectFromEntries } from '../jsBackport';
 import { objectEntries } from '../flowPonyfill';
@@ -52,6 +54,8 @@ const initialState = {
   enableSpectatorAccess: false,
   waitingPeriodThreshold: 90,
   allowEditHistory: false,
+  enableReadReceipts: false,
+  emailAddressVisibility: EmailAddressVisibility.Admins,
 
   //
   // InitialDataRealmUser
@@ -71,6 +75,12 @@ const initialState = {
   //
 
   twentyFourHourTime: false,
+
+  //
+  // Misc.: Not in the /register response.
+  //
+
+  serverEmojiData: null,
 };
 
 const convertRealmEmoji = (data): RealmEmojiById =>
@@ -106,6 +116,8 @@ export default (
 
     case REGISTER_COMPLETE: {
       return {
+        ...state,
+
         //
         // InitialDataCustomProfileFields
         //
@@ -151,6 +163,8 @@ export default (
         enableSpectatorAccess: action.data.realm_enable_spectator_access ?? false,
         waitingPeriodThreshold: action.data.realm_waiting_period_threshold,
         allowEditHistory: action.data.realm_allow_edit_history,
+        enableReadReceipts: action.data.realm_enable_read_receipts ?? false,
+        emailAddressVisibility: action.data.realm_email_address_visibility,
 
         //
         // InitialDataRealmUser
@@ -178,6 +192,12 @@ export default (
           ?? (action.data.twenty_four_hour_time: boolean),
       };
     }
+
+    case REFRESH_SERVER_EMOJI_DATA:
+      return {
+        ...state,
+        serverEmojiData: action.data,
+      };
 
     // TODO on RealmUserUpdateEvent for self: update email, isAdmin, etc.
 
@@ -244,6 +264,12 @@ export default (
             }
             if (data.allow_edit_history !== undefined) {
               result.allowEditHistory = data.allow_edit_history;
+            }
+            if (data.enable_read_receipts !== undefined) {
+              result.enableReadReceipts = data.enable_read_receipts;
+            }
+            if (data.email_address_visibility !== undefined) {
+              result.emailAddressVisibility = data.email_address_visibility;
             }
 
             return result;

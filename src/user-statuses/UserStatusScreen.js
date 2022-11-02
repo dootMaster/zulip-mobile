@@ -13,11 +13,10 @@ import { useSelector } from '../react-redux';
 import Input from '../common/Input';
 import EmojiInput from './EmojiInput';
 import type { Value as EmojiInputValue } from './EmojiInput';
-import { unicodeCodeByName } from '../emoji/codePointMap';
 import {
   emojiTypeFromReactionType,
   reactionTypeFromEmojiType,
-  parseUnicodeEmojiCode,
+  displayCharacterForUnicodeEmojiCode,
 } from '../emoji/data';
 import SelectableOptionRow from '../common/SelectableOptionRow';
 import Screen from '../common/Screen';
@@ -27,23 +26,22 @@ import { getUserStatus } from './userStatusesModel';
 import type { UserStatus } from '../api/modelTypes';
 import { Icon } from '../common/Icons';
 import * as api from '../api';
+import { getRealm } from '../directSelectors';
 
 type StatusSuggestion = [
-  $ReadOnly<{| emoji_name: string, emoji_code: string, reaction_type: 'unicode_emoji' |}>,
   string,
+  $ReadOnly<{| emoji_name: string, emoji_code: string, reaction_type: 'unicode_emoji' |}>,
 ];
 
 const statusSuggestions: $ReadOnlyArray<StatusSuggestion> = [
-  ['working_on_it', 'Busy'],
-  ['calendar', 'In a meeting'],
-  ['bus', 'Commuting'],
-  ['sick', 'Out sick'],
-  ['palm_tree', 'Vacationing'],
-  ['house', 'Working remotely'],
-].map(([emoji_name, status_text]) => [
-  { emoji_name, emoji_code: unicodeCodeByName[emoji_name], reaction_type: 'unicode_emoji' },
-  status_text,
-]);
+  ['Busy', { emoji_name: 'working_on_it', emoji_code: '1f6e0', reaction_type: 'unicode_emoji' }],
+  ['In a meeting', { emoji_name: 'calendar', emoji_code: '1f4c5', reaction_type: 'unicode_emoji' }],
+  ['Commuting', { emoji_name: 'bus', emoji_code: '1f68c', reaction_type: 'unicode_emoji' }],
+  ['Out sick', { emoji_name: 'sick', emoji_code: '1f912', reaction_type: 'unicode_emoji' }],
+  ['Vacationing', { emoji_name: 'palm_tree', emoji_code: '1f334', reaction_type: 'unicode_emoji' }],
+  ['Working remotely', { emoji_name: 'house', emoji_code: '1f3e0', reaction_type: 'unicode_emoji' }], // prettier-ignore
+  ['At the office', { emoji_name: 'office', emoji_code: '1f3e2', reaction_type: 'unicode_emoji' }],
+];
 
 const styles = createStyleSheet({
   inputRow: {
@@ -102,6 +100,8 @@ export default function UserStatusScreen(props: Props): Node {
   // TODO(server-5.0): Cut conditionals on emoji-status support (emoji
   //   supported as of FL 86: https://zulip.com/api/changelog )
   const serverSupportsEmojiStatus = useSelector(getZulipFeatureLevel) >= 86;
+
+  const serverEmojiData = useSelector(state => getRealm(state).serverEmojiData);
 
   const _ = useContext(TranslationContext);
   const auth = useSelector(getAuth);
@@ -173,7 +173,7 @@ export default function UserStatusScreen(props: Props): Node {
         data={statusSuggestions}
         keyboardShouldPersistTaps="always"
         keyExtractor={(item, index) => index.toString() /* list is constant; index OK */}
-        renderItem={({ item: [emoji, text], index }) => {
+        renderItem={({ item: [text, emoji], index }) => {
           const translatedText = _(text);
           return (
             <SelectableOptionRow
@@ -182,7 +182,12 @@ export default function UserStatusScreen(props: Props): Node {
                 serverSupportsEmojiStatus
                   ? {
                       text: '{_}',
-                      values: { _: `${parseUnicodeEmojiCode(emoji.emoji_code)} ${translatedText}` },
+                      values: {
+                        _: `${displayCharacterForUnicodeEmojiCode(
+                          emoji.emoji_code,
+                          serverEmojiData,
+                        )} ${translatedText}`,
+                      },
                     }
                   : text
               }

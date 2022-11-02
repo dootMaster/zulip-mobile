@@ -20,6 +20,7 @@ import {
   REGISTER_START,
   REGISTER_ABORT,
   REGISTER_COMPLETE,
+  REFRESH_SERVER_EMOJI_DATA,
   SET_GLOBAL_SETTINGS,
   DRAFT_UPDATE,
   PRESENCE_RESPONSE,
@@ -59,6 +60,7 @@ import {
   DISMISS_SERVER_COMPAT_NOTICE,
 } from './actionConstants';
 
+import type { UserMessageFlag } from './api/modelTypes';
 import type {
   CustomProfileFieldsEvent,
   MessageEvent,
@@ -93,6 +95,7 @@ import type {
   Subscription,
   Topic,
   RealmEmojiById,
+  ServerEmojiData,
   GlobalSettingsState,
   CaughtUpState,
   UserId,
@@ -411,7 +414,7 @@ type EventUpdateMessageFlagsAction = $ReadOnly<{|
   type: typeof EVENT_UPDATE_MESSAGE_FLAGS,
   all: boolean,
   allMessages: MessagesState,
-  flag: string,
+  flag: UserMessageFlag,
   messages: $ReadOnlyArray<number>,
   op: 'add' | 'remove',
   message_details?: Map<number, UpdateMessageFlagsMessageDetails>,
@@ -621,6 +624,11 @@ type LoadingAction =
   | RegisterAbortAction
   | RegisterCompleteAction;
 
+type RefreshServerEmojiDataAction = $ReadOnly<{|
+  type: typeof REFRESH_SERVER_EMOJI_DATA,
+  data: ServerEmojiData,
+|}>;
+
 type MessageAction = MessageFetchStartAction | MessageFetchErrorAction | MessageFetchCompleteAction;
 
 type OutboxAction = MessageSendStartAction | MessageSendCompleteAction | DeleteOutboxMessageAction;
@@ -645,6 +653,7 @@ export type PerAccountAction =
   // The grouping here is completely arbitrary; don't worry about it.
   | EventAction
   | LoadingAction
+  | RefreshServerEmojiDataAction
   | MessageAction
   | OutboxAction
   | DraftUpdateAction
@@ -764,6 +773,7 @@ export function isPerAccountApplicableAction(action: Action): boolean {
     case REGISTER_START:
     case REGISTER_ABORT:
     case REGISTER_COMPLETE:
+    case REFRESH_SERVER_EMOJI_DATA:
     case MESSAGE_FETCH_COMPLETE:
     case MESSAGE_FETCH_ERROR:
     case MESSAGE_FETCH_START:

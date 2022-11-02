@@ -14,9 +14,9 @@ import TranslationProvider from './boot/TranslationProvider';
 import ThemeProvider from './boot/ThemeProvider';
 import CompatibilityChecker from './boot/CompatibilityChecker';
 import AppEventHandlers from './boot/AppEventHandlers';
-import AppDataFetcher from './boot/AppDataFetcher';
 import { initializeSentry } from './sentry';
 import ZulipSafeAreaProvider from './boot/ZulipSafeAreaProvider';
+import { OfflineNoticeProvider } from './boot/OfflineNoticeProvider';
 
 initializeSentry();
 
@@ -32,6 +32,28 @@ if (Platform.OS === 'android') {
   //
   // In the meantime, we should be on the lookout for any issues with
   // this feature on Android.
+  //
+  // There are some bad interactions with react-native-screens. From
+  // testing, they seem to be Android only, and they go away with
+  // react-native-screens disabled:
+  //  - With react-native-screens enabled, at least at 3.13.1 and 3.17.0, be
+  //    careful when you want a single action to trigger animated layout
+  //    changes on multiple screens at the same time. If a screen isn't
+  //    focused when the layout change happens, the layout change and its
+  //    animation might not happen until you focus the screen. I seemed to
+  //    be able to fix this by calling react-native-screens's
+  //    enableFreeze(true) at the top of this file, but I don't really
+  //    understand why; here's the doc:
+  //      https://github.com/software-mansion/react-freeze
+  //  - With react-native-screens enabled, at least at 3.13.1 and 3.17.0, if
+  //    I'm on a screen where a layout change is happening, and I navigate
+  //    away during the animation, when I come back to the first screen it
+  //    seems stuck at a snapshot of its layout, mid-animation, when I
+  //    navigated away. I haven't found a fix except, at the moment the
+  //    screen regains focus, to unmount and remount *all* affected views on
+  //    the screen, with a changing `key` pseudoprop. This is awkward and
+  //    unfortunately doesn't prevent the frozen layout from showing for a
+  //    split second before the layout resets.
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
@@ -54,15 +76,15 @@ export default function ZulipMobile(): Node {
           <ZulipSafeAreaProvider>
             <StoreHydratedGate>
               <AppEventHandlers>
-                <AppDataFetcher>
-                  <TranslationProvider>
-                    <ThemeProvider>
+                <TranslationProvider>
+                  <ThemeProvider>
+                    <OfflineNoticeProvider>
                       <ActionSheetProvider>
                         <ZulipNavigationContainer />
                       </ActionSheetProvider>
-                    </ThemeProvider>
-                  </TranslationProvider>
-                </AppDataFetcher>
+                    </OfflineNoticeProvider>
+                  </ThemeProvider>
+                </TranslationProvider>
               </AppEventHandlers>
             </StoreHydratedGate>
           </ZulipSafeAreaProvider>

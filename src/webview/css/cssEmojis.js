@@ -1,11 +1,23 @@
 /* @flow strict-local */
-import { codeToEmojiMap } from '../../emoji/data';
+import type { ServerEmojiData } from '../../api/modelTypes';
 
-const codeToCss = (code: string): string =>
-  `.emoji-${code}:before { content: '${codeToEmojiMap[code]}'; }`;
+import { displayCharacterForUnicodeEmojiCode, availableUnicodeEmojiCodes } from '../../emoji/data';
 
-const cssEmojis: string = Object.keys(codeToEmojiMap)
-  .map(key => codeToCss(key))
-  .join('\n');
+const codeToCss = (code, serverEmojiData): string =>
+  `.emoji-${code}:before { content: '${displayCharacterForUnicodeEmojiCode(
+    code,
+    serverEmojiData,
+  )}'; }`;
+
+const cssEmojis = (serverEmojiData: ServerEmojiData | null): string => {
+  const availableCodes = serverEmojiData?.code_to_names.keys() ?? availableUnicodeEmojiCodes;
+
+  const chunks = [];
+  for (const code of availableCodes) {
+    chunks.push(codeToCss(code, serverEmojiData));
+  }
+
+  return chunks.join('\n');
+};
 
 export default cssEmojis;

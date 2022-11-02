@@ -1,6 +1,20 @@
 /* @flow strict-local */
 import invariant from 'invariant';
-import { useRef, useEffect, useState } from 'react';
+import * as React from 'react';
+
+/**
+ * Like React.ElementConfig, but includes the pseudoprops `ref` and `key`.
+ *
+ * That is, this contains exactly the set of JSX attributes one can pass
+ * when creating an element of this component-type.
+ *
+ * Assumes the underlying props type is an exact object type.
+ */
+export type ElementConfigFull<+C> = {|
+  ...$Exact<React.ElementConfig<C>>,
+  +ref?: React.Ref<C>,
+  +key?: React.Key,
+|};
 
 /**
  * A Hook for the value of a prop, state, etc., from the previous render.
@@ -25,8 +39,8 @@ import { useRef, useEffect, useState } from 'react';
 // (because effectively the `?` would handle it instead), and so `U` would
 // be the empty type and `T | U` would be just `T`.
 export function usePrevious<T, U>(value: T, initValue: U): T | U {
-  const ref = useRef<T | U>(initValue);
-  useEffect(() => {
+  const ref = React.useRef<T | U>(initValue);
+  React.useEffect(() => {
     ref.current = value;
   });
   return ref.current;
@@ -48,8 +62,50 @@ export function useDebugAssertConstant<T>(value: T) {
 
   // Conditional, but on a per-process constant.
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const origValue = useRef(value);
+  const origValue = React.useRef(value);
   invariant(value === origValue.current, '');
+}
+
+/**
+ * True just when `value` has not changed for the past `duration`.
+ *
+ * "Changed" means last render's and this render's `value`s aren't ===.
+ *
+ * When the given time has elapsed so that this hook's return value becomes
+ * true, it causes a rerender through a state update.
+ *
+ * The caller must use a constant `duration` through the lifetime of a given
+ * component instance.
+ *
+ * Note this hook doesn't (and can't) do anything to cause a rerender when
+ * `value` changes.  The caller must ensure that the component rerenders (so
+ * that in particular this hook gets called again) whenever `value` will
+ * have changed; for example, by using a prop or a `useState` value.
+ */
+export function useHasNotChangedForMs(value: mixed, duration: number): boolean {
+  useDebugAssertConstant(duration);
+
+  const [result, setResult] = React.useState(false);
+
+  React.useEffect(() => {
+    setResult(false);
+    const id = setTimeout(() => setResult(true), duration);
+    return () => clearTimeout(id);
+  }, [
+    // If `duration` changes, we'll tear down the old timeout and start the
+    // timer over.  That isn't really ideal behavior... but we don't
+    // actually have a use case for a dynamic `duration`, and supporting it
+    // properly would be more complex, so we've just forbidden that as part
+    // of this hook function's interface.
+    duration,
+
+    // Otherwise, trigger the effect just if React sees a change in `value`.
+    // In other words, just when last render's and this render's `value`s
+    // aren't ===.
+    value,
+  ]);
+
+  return result;
 }
 
 /**
@@ -60,28 +116,17 @@ export function useDebugAssertConstant<T>(value: T) {
  *
  * The caller must use a constant `duration` through the lifetime of a given
  * component instance.
+ *
+ * Note this hook doesn't (and can't) do anything to cause a rerender when
+ * `value` changes.  The caller must ensure that the component rerenders (so
+ * that in particular this hook gets called again) whenever `value` will
+ * have changed; for example, by using a prop or a `useState` value.
  */
 export const useHasStayedTrueForMs = (value: boolean, duration: number): boolean => {
   useDebugAssertConstant(duration);
 
-  const [result, setResult] = useState<boolean>(false);
-
-  // eslint-disable-next-line consistent-return
-  useEffect(() => {
-    if (value) {
-      const id = setTimeout(() => setResult(true), duration);
-      return () => clearTimeout(id);
-    } else {
-      setResult(false);
-    }
-    // If `duration` changes, we'll tear down the old timeout and start the
-    // timer over.  That isn't really ideal behavior... but we don't
-    // actually have a use case for a dynamic `duration`, and supporting it
-    // properly would be more complex, so we've just forbidden that as part
-    // of this hook function's interface.
-  }, [value, duration]);
-
-  return result;
+  const hasNotChangedForDuration = useHasNotChangedForMs(value, duration);
+  return value && hasNotChangedForDuration;
 };
 
 /**
@@ -103,4 +148,4 @@ export const useHasStayedTrueForMs = (value: boolean, duration: number): boolean
 // docs could be clearer about that:
 //   https://reactjs.org/docs/hooks-effect.html#tip-optimizing-performance-by-skipping-effects
 export const useConditionalEffect = (cb: () => void | (() => void), value: boolean): void =>
-  useEffect(() => (value ? cb() : undefined), [value, cb]);
+  React.useEffect(() => (value ? cb() : undefined), [value, cb]);

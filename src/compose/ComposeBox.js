@@ -9,8 +9,8 @@ import invariant from 'invariant';
 
 import { usePrevious } from '../reactUtils';
 import * as apiConstants from '../api/constants';
-import { ThemeContext, BRAND_COLOR } from '../styles';
-import type { Narrow, InputSelection, VideoChatProvider } from '../types';
+import { ThemeContext, BRAND_COLOR, createStyleSheet } from '../styles';
+import type { Narrow, VideoChatProvider } from '../types';
 import { useSelector, useDispatch } from '../react-redux';
 import { TranslationContext } from '../boot/TranslationProvider';
 import { draftUpdate, sendTypingStart, sendTypingStop } from '../actions';
@@ -50,12 +50,13 @@ import * as api from '../api';
 import { ensureUnreachable } from '../generics';
 import { getOwnUserRole, roleIsAtLeast } from '../permissionSelectors';
 import { Role } from '../api/permissionsTypes';
+import useUncontrolledInput from '../useUncontrolledInput';
 
 /* eslint-disable no-shadow */
 
 type Props = $ReadOnly<{|
   /** The narrow shown in the message list.  Must be a conversation or stream. */
-  // In particular `getDestinationNarrow` makes assumptions about the narrow
+  // In particular `destinationNarrow` makes assumptions about the narrow
   // (and other code might too.)
   narrow: Narrow,
 
@@ -86,86 +87,6 @@ const FOCUS_DEBOUNCE_TIME_MS = 16;
 function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
-
-/**
- * State management for an Input component that doesn't get passed `value`
- *   or `selection`, i.e., an uncontrolled Input.
- *
- * For background on the concept, see
- *   https://reactjs.org/docs/uncontrolled-components.html
- * and our #2738 for the performance concerns that led us to use this in the
- * compose box.
- *
- * Returns:
- * - A ref to use for the TextInput
- * - The value and selection state
- * - Functions to set the value and selection
- * - Two callbacks that should be passed directly to the TextInput as props:
- *   onChangeText, onSelectionChange.
- */
-const useUncontrolledInput = (args: {|
-  initialValue?: string,
-  initialSelection?: InputSelection,
-|}) => {
-  const { initialValue = '', initialSelection = { start: 0, end: 0 } } = args;
-
-  // We should replace the fixme with
-  // `React$ElementRef<typeof TextInput>` when we can. Currently, that
-  // would make `.current` be `any(implicit)`, which we don't want;
-  // this is probably down to bugs in Flow's special support for React.
-  const ref = React.useRef<$FlowFixMe | null>(null);
-
-  const [state, setState] = useState<{|
-    value: string,
-    selection: InputSelection,
-  |}>({
-    value: initialValue,
-    selection: initialSelection,
-  });
-
-  const setValueWasCalled = useRef<boolean>(false);
-  const setValue = useCallback(updater => {
-    setValueWasCalled.current = true;
-    setState(state => ({
-      ...state,
-      value: typeof updater === 'function' ? updater(state) : updater,
-    }));
-  }, []);
-  const prevValue = usePrevious(state.value);
-  useEffect(() => {
-    if (prevValue !== state.value && setValueWasCalled.current) {
-      // If the state change was requested from the JavaScript side, i.e.,
-      // not in response to a native-props change caused by the user's input
-      // device, update the native props.
-      ref.current?.setNativeProps({ text: state.value });
-      setValueWasCalled.current = false;
-    }
-  });
-
-  const setSelection = useCallback(() => {
-    // TODO: Implement
-    throw new Error('unimplemented!');
-  }, []);
-
-  return [
-    ref,
-    state,
-    setValue,
-    setSelection,
-    {
-      onChangeText: useCallback((value: string) => {
-        setState(state => ({ ...state, value }));
-      }, []),
-      onSelectionChange: useCallback(
-        (event: { +nativeEvent: { +selection: InputSelection, ... }, ... }) => {
-          const { selection } = event.nativeEvent;
-          setState(state => ({ ...state, selection }));
-        },
-        [],
-      ),
-    },
-  ];
-};
 
 export default function ComposeBox(props: Props): Node {
   const {
@@ -225,7 +146,7 @@ export default function ComposeBox(props: Props): Node {
     setTopicInputSelection /* eslint-disable-line no-unused-vars */,
     topicInputCallbacks,
   ] = useUncontrolledInput({
-    initialValue: initialTopic ?? (isTopicNarrow(narrow) ? topicOfNarrow(narrow) : ''),
+    value: initialTopic ?? (isTopicNarrow(narrow) ? topicOfNarrow(narrow) : ''),
   });
 
   const [
@@ -234,10 +155,7 @@ export default function ComposeBox(props: Props): Node {
     setMessageInputValue,
     setMessageInputSelection /* eslint-disable-line no-unused-vars */,
     messageInputCallbacks,
-  ] = useUncontrolledInput({
-    initialValue: initialMessage ?? '',
-    initialSelection: { start: 0, end: 0 },
-  });
+  ] = useUncontrolledInput({ value: initialMessage ?? '', selection: { start: 0, end: 0 } });
 
   useEffect(
     () => () => {
@@ -279,7 +197,7 @@ export default function ComposeBox(props: Props): Node {
     setFocusState(state => ({ ...state, either: state.message || state.topic }));
   }, []);
 
-  const getCanSelectTopic = useCallback(() => {
+  const canSelectTopic = useMemo(() => {
     if (isEditing) {
       return isStreamOrTopicNarrow(narrow);
     }
@@ -441,27 +359,24 @@ export default function ComposeBox(props: Props): Node {
     setIsMenuExpanded(false);
   }, []);
 
-  // TODO: This can just be `const destinationNarrow: Narrow`
-  const getDestinationNarrow = useCallback((): Narrow => {
+  const destinationNarrow = useMemo(() => {
     if (isStreamNarrow(narrow) || (isTopicNarrow(narrow) && isEditing)) {
       const streamId = streamIdOfNarrow(narrow);
-      const topic = topicInputState.value.trim() || apiConstants.NO_TOPIC_TOPIC;
+      const topic = topicInputState.value.trim() || apiConstants.kNoTopicTopic;
       return topicNarrow(streamId, topic);
     }
     invariant(isConversationNarrow(narrow), 'destination narrow must be conversation');
     return narrow;
   }, [isEditing, narrow, topicInputState.value]);
 
-  // TODO: This can just be `const validationErrors: $ReadOnlyArray<ValidationError>`
-  const getValidationErrors = useCallback((): $ReadOnlyArray<ValidationError> => {
-    const destinationNarrow = getDestinationNarrow();
+  const validationErrors = useMemo(() => {
     const { value: messageInputValue } = messageInputState;
 
     const result = [];
 
     if (
       isTopicNarrow(destinationNarrow)
-      && topicOfNarrow(destinationNarrow) === apiConstants.NO_TOPIC_TOPIC
+      && topicOfNarrow(destinationNarrow) === apiConstants.kNoTopicTopic
       && mandatoryTopics
     ) {
       result.push('mandatory-topic-empty');
@@ -476,17 +391,16 @@ export default function ComposeBox(props: Props): Node {
     }
 
     return result;
-  }, [getDestinationNarrow, mandatoryTopics, numUploading, messageInputState]);
+  }, [destinationNarrow, mandatoryTopics, numUploading, messageInputState]);
+
+  const submitButtonDisabled = validationErrors.length > 0;
 
   const handleSubmit = useCallback(() => {
     const { value: messageInputValue } = messageInputState;
-    const destinationNarrow = getDestinationNarrow();
-    const validationErrors = getValidationErrors();
 
     if (validationErrors.length > 0) {
       const msg = validationErrors
         .map(error => {
-          // 'upload-in-progress' | 'message-empty' | 'mandatory-topic-empty'
           switch (error) {
             case 'upload-in-progress':
               return _('Please wait for the upload to complete.');
@@ -517,8 +431,8 @@ export default function ComposeBox(props: Props): Node {
 
     dispatch(sendTypingStop(destinationNarrow));
   }, [
-    getDestinationNarrow,
-    getValidationErrors,
+    destinationNarrow,
+    validationErrors,
     _,
     dispatch,
     isEditing,
@@ -540,51 +454,67 @@ export default function ComposeBox(props: Props): Node {
 
   const { backgroundColor } = useContext(ThemeContext);
   const styles = useMemo(
-    () => ({
-      wrapper: {
-        flexShrink: 1,
-        maxHeight: '60%',
-      },
-      autocompleteWrapper: {
-        position: 'absolute',
-        bottom: 0,
-        width: '100%',
-      },
-      composeBox: {
-        flexDirection: 'row',
-        alignItems: 'flex-end',
-        flexShrink: 1,
-      },
-      composeText: {
-        flex: 1,
-        paddingVertical: 8,
-      },
-      submitButtonContainer: {
-        padding: 8,
-      },
-      submitButton: {
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: BRAND_COLOR,
-        borderRadius: 32,
-        padding: 8,
-      },
-      topicInput: {
-        borderWidth: 0,
-        borderRadius: 5,
-        marginBottom: 8,
-        ...inputMarginPadding,
-      },
-      composeTextInput: {
-        borderWidth: 0,
-        borderRadius: 5,
-        fontSize: 15,
-        flexShrink: 1,
-        ...inputMarginPadding,
-        backgroundColor,
-      },
-    }),
-    [inputMarginPadding, backgroundColor],
+    () =>
+      createStyleSheet({
+        wrapper: {
+          flexShrink: 1,
+          maxHeight: '60%',
+        },
+        autocompleteWrapper: {
+          position: 'absolute',
+          bottom: 0,
+          width: '100%',
+          marginBottom: height,
+        },
+        composeBox: {
+          flexDirection: 'row',
+          alignItems: 'flex-end',
+          flexShrink: 1,
+          backgroundColor: 'hsla(0, 0%, 50%, 0.1)',
+        },
+        composeText: {
+          flex: 1,
+          paddingVertical: 8,
+        },
+        submitButtonContainer: {
+          padding: 8,
+        },
+        submitButton: {
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: BRAND_COLOR,
+          borderRadius: 32,
+          padding: 8,
+          opacity: submitButtonDisabled ? 0.25 : 1,
+        },
+        topicInput: {
+          borderWidth: 0,
+          borderRadius: 5,
+          marginBottom: 8,
+          ...inputMarginPadding,
+          backgroundColor,
+
+          // This is a really dumb hack to work around
+          // https://github.com/facebook/react-native/issues/16405.
+          // Someone suggests in that thread that { position: absolute,
+          // zIndex: -1 } will work, which it does not (the border of the
+          // TextInput is still visible, even with very negative zIndex
+          // values). Someone else suggests { transform: [{scale: 0}] }
+          // (https://stackoverflow.com/a/49817873), which doesn't work
+          // either. However, a combinarion of the two of them seems to
+          // work.
+          ...(!canSelectTopic && { position: 'absolute', transform: [{ scale: 0 }] }),
+        },
+        composeTextInput: {
+          borderWidth: 0,
+          borderRadius: 5,
+          fontSize: 15,
+          flexShrink: 1,
+          ...inputMarginPadding,
+          backgroundColor,
+        },
+      }),
+    [inputMarginPadding, backgroundColor, height, submitButtonDisabled, canSelectTopic],
   );
 
   const submitButtonHitSlop = useMemo(() => ({ top: 8, right: 8, bottom: 8, left: 8 }), []);
@@ -598,17 +528,13 @@ export default function ComposeBox(props: Props): Node {
   }
 
   const placeholder = getComposeInputPlaceholder(narrow, ownUserId, allUsersById, streamsById);
-  const style = {
-    backgroundColor: 'hsla(0, 0%, 50%, 0.1)',
-  };
 
   const SubmitButtonIcon = isEditing ? IconDone : IconSend;
-  const submitButtonDisabled = getValidationErrors().length > 0;
 
   return (
     <View style={styles.wrapper}>
       <MentionWarnings narrow={narrow} stream={stream} ref={mentionWarnings} />
-      <View style={[styles.autocompleteWrapper, { marginBottom: height }]}>
+      <View style={styles.autocompleteWrapper}>
         <TopicAutocomplete
           isFocused={focusState.topic}
           narrow={narrow}
@@ -625,11 +551,11 @@ export default function ComposeBox(props: Props): Node {
       <SafeAreaView
         mode="padding"
         edges={['bottom']}
-        style={[styles.composeBox, style]}
+        style={styles.composeBox}
         onLayout={handleLayoutChange}
       >
         <ComposeMenu
-          destinationNarrow={getDestinationNarrow()}
+          destinationNarrow={destinationNarrow}
           expanded={isMenuExpanded}
           insertAttachment={insertAttachment}
           insertVideoCallLink={
@@ -639,20 +565,7 @@ export default function ComposeBox(props: Props): Node {
         />
         <View style={styles.composeText}>
           <Input
-            style={[
-              styles.topicInput,
-              { backgroundColor },
-              // This is a really dumb hack to work around
-              // https://github.com/facebook/react-native/issues/16405.
-              // Someone suggests in that thread that { position: absolute,
-              // zIndex: -1 } will work, which it does not (the border of the
-              // TextInput is still visible, even with very negative zIndex
-              // values). Someone else suggests { transform: [{scale: 0}] }
-              // (https://stackoverflow.com/a/49817873), which doesn't work
-              // either. However, a combinarion of the two of them seems to
-              // work.
-              !getCanSelectTopic() && { position: 'absolute', transform: [{ scale: 0 }] },
-            ]}
+            style={styles.topicInput}
             autoCapitalize="none"
             underlineColorAndroid="transparent"
             placeholder="Topic"
@@ -697,7 +610,7 @@ export default function ComposeBox(props: Props): Node {
             hitSlop={submitButtonHitSlop}
           >
             <Touchable
-              style={[styles.submitButton, { opacity: submitButtonDisabled ? 0.25 : 1 }]}
+              style={styles.submitButton}
               onPress={handleSubmit}
               accessibilityLabel={isEditing ? _('Save message') : _('Send message')}
               hitSlop={submitButtonHitSlop}

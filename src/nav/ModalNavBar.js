@@ -1,12 +1,13 @@
 /* @flow strict-local */
-import React, { useContext } from 'react';
+import React, { useContext, useMemo } from 'react';
 import type { Node } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { LocalizableReactText } from '../types';
-import styles, { ThemeContext, NAVBAR_SIZE } from '../styles';
+import globalStyles, { ThemeContext, NAVBAR_SIZE } from '../styles';
 import ZulipTextIntl from '../common/ZulipTextIntl';
 import NavBarBackButton from './NavBarBackButton';
+import { OfflineNoticePlaceholder } from '../boot/OfflineNoticeProvider';
 
 type Props = $ReadOnly<{|
   canGoBack: boolean,
@@ -32,28 +33,36 @@ export default function ModalNavBar(props: Props): Node {
 
   const { canGoBack, title } = props;
   const { backgroundColor } = useContext(ThemeContext);
-  const textStyle = [
-    styles.navTitle,
-    { flex: 1 },
-    canGoBack ? { marginStart: 20, marginEnd: 8 } : { marginHorizontal: 8 },
-  ];
 
-  return (
-    <SafeAreaView
-      mode="padding"
-      edges={['top', 'right', 'left']}
-      style={{
-        minHeight: NAVBAR_SIZE,
+  const styles = useMemo(
+    () => ({
+      text: [
+        globalStyles.navTitle,
+        { flex: 1 },
+        canGoBack ? { marginStart: 20, marginEnd: 8 } : { marginHorizontal: 8 },
+      ],
+      surface: {
         borderColor: 'hsla(0, 0%, 50%, 0.25)',
         borderBottomWidth: 1,
         backgroundColor,
-        paddingHorizontal: 4,
+      },
+      contentArea: {
+        minHeight: NAVBAR_SIZE,
         flexDirection: 'row',
         alignItems: 'center',
-      }}
-    >
-      {canGoBack && <NavBarBackButton />}
-      <ZulipTextIntl style={textStyle} text={title} numberOfLines={1} ellipsizeMode="tail" />
+        paddingHorizontal: 4,
+      },
+    }),
+    [canGoBack, backgroundColor],
+  );
+
+  return (
+    <SafeAreaView mode="padding" edges={['top']} style={styles.surface}>
+      <OfflineNoticePlaceholder />
+      <SafeAreaView mode="padding" edges={['right', 'left']} style={styles.contentArea}>
+        {canGoBack && <NavBarBackButton />}
+        <ZulipTextIntl style={styles.text} text={title} numberOfLines={1} ellipsizeMode="tail" />
+      </SafeAreaView>
     </SafeAreaView>
   );
 }

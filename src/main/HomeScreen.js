@@ -3,6 +3,7 @@
 import React from 'react';
 import type { Node } from 'react';
 import { View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { RouteProp } from '../react-navigation';
 import type { MainTabsNavigationProp } from './MainTabsScreen';
@@ -17,6 +18,7 @@ import LoadingBanner from '../common/LoadingBanner';
 import ServerCompatBanner from '../common/ServerCompatBanner';
 import ServerPushSetupBanner from '../common/ServerPushSetupBanner';
 import { IconAllMessages } from '../common/Icons';
+import { OfflineNoticePlaceholder } from '../boot/OfflineNoticeProvider';
 
 const styles = createStyleSheet({
   wrapper: {
@@ -39,7 +41,8 @@ export default function HomeScreen(props: Props): Node {
   const dispatch = useDispatch();
 
   return (
-    <View style={styles.wrapper}>
+    <SafeAreaView mode="padding" edges={['top']} style={styles.wrapper}>
+      <OfflineNoticePlaceholder />
       <View style={styles.iconList}>
         <TopTabButtonGeneral
           onPress={() => {
@@ -72,6 +75,6 @@ export default function HomeScreen(props: Props): Node {
       <ServerPushSetupBanner />
       <LoadingBanner />
       <UnreadCards />
-    </View>
+    </SafeAreaView>
   );
 }

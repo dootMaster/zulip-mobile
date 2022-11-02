@@ -1,5 +1,11 @@
 # React, etc.
 
+(**2022 note:** This doc is in terms of the old-style React API, where
+nontrivial components are typically implemented as classes.  Today, most of
+our components are implemented in the React API's new style, as function
+components using Hooks.  The principles below still largely apply, but much
+of the API is different.)
+
 This doc describes how we use React and closely related libraries like
 Redux, and how we apply the architectural ideas associated with them.
 
@@ -135,10 +141,13 @@ doc](https://reactjs.org/docs/context.html)):
 > [...])
 > is not subject to the shouldComponentUpdate method
 
-Concretely, this means that our `MessageList` component updates
-(re-`render`s) when the theme changes, since it's a `ThemeContext`
-consumer, *even though its `shouldComponentUpdate` always returns
-`false`*. So far, this hasn't been a problem because the UI doesn't
+We also confirmed this behavior experimentally, in a 2020 version of
+`MessageList` which used `ThemeContext` to get the theme colors.
+(Since 1ba871910, `MessageList` uses a transparent background and so
+doesn't need the theme; since 4fa2418b8 it doesn't mention
+`ThemeContext`.)  That component re-`render`ed when the theme changed,
+*even though its `shouldComponentUpdate` always returned `false`*.
+This didn't cause a live problem because the UI doesn't
 allow changing the theme while a `MessageList` is in the navigation
 stack. If it were possible, it would be a concern: setting a short
 interval to automatically toggle the theme, we see that the message
@@ -161,8 +170,8 @@ it could use `PureComponent`, but it doesn't -- instead we have a
 `shouldComponentUpdate` that always returns `false`, so even when `props`
 change quite materially (e.g., a new Zulip message arrives which should be
 displayed) we don't have React re-render the component. (See the note
-on the current Context API, above, for a known case where our
-`shouldComponentUpdate` is ignored.)
+on the current Context API, above, for a known case where
+`shouldComponentUpdate` can be ignored.)
 
 The specifics of why not, and what we do instead, deserve an architecture
 doc of their own.  In brief: `render` returns a single React element, a

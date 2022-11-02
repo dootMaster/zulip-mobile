@@ -28,7 +28,7 @@ export type * from './idTypes';
  */
 // This is an enum; see discussion on other enums.
 // eslint-disable-next-line ft-flow/type-id-match
-export type CustomProfileFieldTypeT = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+export type CustomProfileFieldTypeT = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
 /**
  * An enum of all valid values for CustomProfileFieldTypeT.
@@ -47,6 +47,7 @@ export const CustomProfileFieldType = {
   Link: (5: 5),
   User: (6: 6),
   ExternalAccount: (7: 7),
+  Pronouns: (8: 8),
 };
 
 // Check that the enum indeed has all and only the values of the type.
@@ -81,6 +82,7 @@ export type CustomProfileField = {|
    * it's a string, one serializing a JSON object.
    */
   +field_data: string,
+  +display_in_profile_summary?: true,
 |};
 
 export type ImageEmojiType = $ReadOnly<{|
@@ -99,6 +101,24 @@ export type ImageEmojiType = $ReadOnly<{|
 export type RealmEmojiById = $ReadOnly<{|
   [id: string]: ImageEmojiType,
 |}>;
+
+/**
+ * The server's record of available Unicode emojis, with primary names and
+ *   aliases.
+ *
+ * See `server_emoji_data_url` at https://zulip.com/api/register-queue.
+ */
+export type ServerEmojiData = {|
+  +code_to_names: Map<
+    // `emoji_code` for an available Unicode emoji: a "dash-separated hex
+    // encoding of the sequence of Unicode codepoints that define this emoji
+    // in the Unicode specification."
+    string,
+    // `emoji_name`s for the Unicode emoji. The canonical name appears
+    // first, followed by any aliases.
+    $ReadOnlyArray<string>,
+  >,
+|};
 
 /**
  * The only way servers before feature level 54 represent linkifiers.
@@ -157,8 +177,14 @@ export type User = {|
   // Current to feature level (FL) 121.
 
   +user_id: UserId,
-  +delivery_email?: string,
+
+  // Currently `delivery_email` is always `string` if present.  A planned
+  // future API may make it sometimes `null`, to explicitly indicate that no
+  // delivery email for this user is visible to us:
+  //   https://chat.zulip.org/#narrow/stream/378-api-design/topic/email.20address.20visibility/near/1296132
+  +delivery_email?: string | null,
   +email: string,
+
   +full_name: string,
 
   // We expect ISO 8601; that's in the doc's example response.
@@ -243,7 +269,7 @@ export type CrossRealmBot = {|
   // Current to feature level (FL) 121.
 
   +user_id: UserId,
-  +delivery_email?: string,
+  +delivery_email?: string | null,
   +email: string,
   +full_name: string,
 
@@ -724,6 +750,21 @@ export type Submessage = $ReadOnly<{|
 |}>;
 
 /**
+ * A flag that can be set on a message for a user.
+ *
+ * See:
+ *   https://zulip.com/api/update-message-flags#available-flags
+ */
+export type UserMessageFlag =
+  | 'read'
+  | 'starred'
+  | 'collapsed'
+  | 'mentioned'
+  | 'wildcard_mentioned'
+  | 'has_alert_word'
+  | 'historical';
+
+/**
  * Properties in common among the two different flavors of a
  * `Message`: `PmMessage` and `StreamMessage`.
  */
@@ -819,7 +860,7 @@ type MessageBase = $ReadOnly<{|
    *  * Absent in the Redux `state.messages`; we move the information to a
    *    separate subtree `state.flags`.
    */
-  flags?: $ReadOnlyArray<string>,
+  flags?: $ReadOnlyArray<UserMessageFlag>,
 
   /** Our own flag; if true, really type `Outbox`. */
   isOutbox?: false,

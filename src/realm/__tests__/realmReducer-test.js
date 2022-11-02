@@ -15,10 +15,20 @@ import type { RealmDataForUpdate } from '../../api/realmDataTypes';
 import {
   CreatePublicOrPrivateStreamPolicy,
   CreateWebPublicStreamPolicy,
+  EmailAddressVisibility,
 } from '../../api/permissionsTypes';
 import { CustomProfileFieldType } from '../../api/modelTypes';
 import { EventTypes } from '../../api/eventTypes';
 import * as eg from '../../__tests__/lib/exampleData';
+
+const labelFromValue = value =>
+  /* $FlowFixMe[incompatible-use] - CreateWebPublicStreamPolicy is a
+     Flow enum. Values are numbers, so they do have .toString…but
+     Flow reasonably hides that detail from consumers. For
+     CreateWebPublicStreamPolicy, it would actually be better to use
+     CreateWebPublicStreamPolicy.getName(initialStateValue), if we
+     find a nice way to write that with type checking. */
+  value?.toString() ?? '[nullish]';
 
 describe('realmReducer', () => {
   describe('REGISTER_COMPLETE', () => {
@@ -58,6 +68,8 @@ describe('realmReducer', () => {
         enableSpectatorAccess: action.data.realm_enable_spectator_access,
         waitingPeriodThreshold: action.data.realm_waiting_period_threshold,
         allowEditHistory: action.data.realm_allow_edit_history,
+        enableReadReceipts: action.data.realm_enable_read_receipts,
+        emailAddressVisibility: action.data.realm_email_address_visibility,
 
         //
         // InitialDataRealmUser
@@ -79,6 +91,12 @@ describe('realmReducer', () => {
         /* $FlowIgnore[incompatible-use] - testing modern servers, which
            send user_settings. */
         twentyFourHourTime: action.data.user_settings.twenty_four_hour_time,
+
+        //
+        // Misc.: Not in the /register response. (These should be unchanged.)
+        //
+
+        serverEmojiData: eg.baseReduxState.realm.serverEmojiData,
       });
     });
   });
@@ -218,10 +236,22 @@ describe('realmReducer', () => {
   });
 
   describe('EVENT', () => {
-    // TODO(server-4.0): Remove when deprecated properties are removed
-    type ReadableRealmState = $Rest<
+    /**
+     * The part of RealmState that we expect to test EVENT actions on.
+     */
+    type EventUpdatableRealmState = $Rest<
       RealmState,
-      {| isOwner: mixed, isAdmin: mixed, isModerator: mixed, isGuest: mixed |},
+      {|
+        // TODO(server-4.0): Remove these four deprecated properties.
+        isOwner: mixed,
+        isAdmin: mixed,
+        isModerator: mixed,
+        isGuest: mixed,
+
+        serverEmojiData: mixed,
+
+        // Incomplete; add others as needed to satisfy Flow.
+      |},
     >;
 
     describe('type `custom_profile_fields`', () => {
@@ -266,33 +296,32 @@ describe('realmReducer', () => {
       const eventCommon = { id: 0, type: EventTypes.user_settings, op: 'update' };
 
       const mkCheck =
-        <S: $Keys<ReadableRealmState>, E: $Keys<UserSettings>>(
+        <S: $Keys<EventUpdatableRealmState>, E: $Keys<UserSettings>>(
           statePropertyName: S,
           eventPropertyName: E,
         ): ((RealmState[S], UserSettings[E]) => void) =>
         (initialStateValue, eventValue) => {
-          /* prettier-ignore */ // (wants to wrap the name weirdly)
-          test(`${initialStateValue?.toString() ?? '[nullish]'} → ${eventValue?.toString() ?? '[nullish]'}`, () => {
-          const initialState = { ...eg.plusReduxState.realm };
-          // $FlowFixMe[prop-missing]
-          // $FlowFixMe[class-object-subtyping]
-          /* $FlowFixMe[incompatible-type]: Trust that the caller passed the
-           right kind of value for its chosen key. */
-          initialState[statePropertyName] = initialStateValue;
+          test(`${labelFromValue(initialStateValue)} → ${labelFromValue(eventValue)}`, () => {
+            const initialState = { ...eg.plusReduxState.realm };
+            // $FlowFixMe[prop-missing]
+            // $FlowFixMe[class-object-subtyping]
+            /* $FlowFixMe[incompatible-type]: Trust that the caller passed the
+               right kind of value for its chosen key. */
+            initialState[statePropertyName] = initialStateValue;
 
-          const expectedState = { ...initialState };
-          // $FlowFixMe[prop-missing]
-          /* $FlowFixMe[incompatible-type]: Trust that the caller passed the
-           right kind of value for its chosen key. */
-          expectedState[statePropertyName] = eventValue;
+            const expectedState = { ...initialState };
+            // $FlowFixMe[prop-missing]
+            /* $FlowFixMe[incompatible-type]: Trust that the caller passed the
+               right kind of value for its chosen key. */
+            expectedState[statePropertyName] = eventValue;
 
-          expect(
-            realmReducer(initialState, {
-              type: EVENT,
-              event: { ...eventCommon, property: eventPropertyName, value: eventValue },
-            }),
-          ).toEqual(expectedState);
-        });
+            expect(
+              realmReducer(initialState, {
+                type: EVENT,
+                event: { ...eventCommon, property: eventPropertyName, value: eventValue },
+              }),
+            ).toEqual(expectedState);
+          });
         };
 
       describe('twentyFourHourTime / twenty_four_hour_time', () => {
@@ -308,36 +337,35 @@ describe('realmReducer', () => {
       const eventCommon = { id: 0, type: EventTypes.realm, op: 'update_dict', property: 'default' };
 
       const mkCheck =
-        <S: $Keys<ReadableRealmState>, E: $Keys<RealmDataForUpdate>>(
+        <S: $Keys<EventUpdatableRealmState>, E: $Keys<RealmDataForUpdate>>(
           statePropertyName: S,
           eventPropertyName: E,
         ): ((RealmState[S], RealmDataForUpdate[E]) => void) =>
         (initialStateValue, eventValue) => {
-          /* prettier-ignore */ // (wants to wrap the name weirdly)
-          test(`${initialStateValue?.toString() ?? '[nullish]'} → ${eventValue?.toString() ?? '[nullish]'}`, () => {
-          const initialState = { ...eg.plusReduxState.realm };
-          // $FlowFixMe[prop-missing]
-          // $FlowFixMe[class-object-subtyping]
-          /* $FlowFixMe[incompatible-type]: Trust that the caller passed the
-           right kind of value for its chosen key. */
-          initialState[statePropertyName] = initialStateValue;
+          test(`${labelFromValue(initialStateValue)} → ${labelFromValue(eventValue)}`, () => {
+            const initialState = { ...eg.plusReduxState.realm };
+            // $FlowFixMe[prop-missing]
+            // $FlowFixMe[class-object-subtyping]
+            /* $FlowFixMe[incompatible-type]: Trust that the caller passed the
+               right kind of value for its chosen key. */
+            initialState[statePropertyName] = initialStateValue;
 
-          const expectedState = { ...initialState };
-          /* $FlowFixMe[incompatible-type]: Trust that the caller passed the
-           right kind of value for its chosen key. */
-          expectedState[statePropertyName] = eventValue;
+            const expectedState = { ...initialState };
+            /* $FlowFixMe[incompatible-type]: Trust that the caller passed the
+               right kind of value for its chosen key. */
+            expectedState[statePropertyName] = eventValue;
 
-          expect(
-            realmReducer(initialState, {
-              type: EVENT,
-              event: {
-                ...eventCommon,
-                // $FlowFixMe[invalid-computed-prop]
-                data: { [eventPropertyName]: eventValue },
-              },
-            }),
-          ).toEqual(expectedState);
-        });
+            expect(
+              realmReducer(initialState, {
+                type: EVENT,
+                event: {
+                  ...eventCommon,
+                  // $FlowFixMe[invalid-computed-prop]
+                  data: { [eventPropertyName]: eventValue },
+                },
+              }),
+            ).toEqual(expectedState);
+          });
         };
 
       describe('name / name', () => {
@@ -465,6 +493,39 @@ describe('realmReducer', () => {
         check(true, false);
         check(false, true);
         check(false, false);
+      });
+
+      describe('enableReadReceipts / enable_read_receipts', () => {
+        const check = mkCheck('enableReadReceipts', 'enable_read_receipts');
+        check(true, true);
+        check(true, false);
+        check(false, true);
+        check(false, false);
+      });
+
+      describe('emailAddressVisibility / email_address_visibility', () => {
+        const { Everyone, Members, Admins, Nobody, Moderators } = EmailAddressVisibility;
+        const check = mkCheck('emailAddressVisibility', 'email_address_visibility');
+        check(Everyone, Members);
+        check(Everyone, Admins);
+        check(Everyone, Nobody);
+        check(Everyone, Moderators);
+        check(Members, Everyone);
+        check(Members, Admins);
+        check(Members, Nobody);
+        check(Members, Moderators);
+        check(Admins, Everyone);
+        check(Admins, Members);
+        check(Admins, Nobody);
+        check(Admins, Moderators);
+        check(Nobody, Everyone);
+        check(Nobody, Admins);
+        check(Nobody, Members);
+        check(Nobody, Moderators);
+        check(Moderators, Everyone);
+        check(Moderators, Admins);
+        check(Moderators, Members);
+        check(Moderators, Nobody);
       });
     });
   });

@@ -18,7 +18,8 @@ import type {
 } from './apiTypes';
 import type {
   CreatePublicOrPrivateStreamPolicyT,
-  CreateWebPublicStreamPolicyT,
+  CreateWebPublicStreamPolicy,
+  EmailAddressVisibility,
 } from './permissionsTypes';
 
 /*
@@ -93,7 +94,7 @@ export type AvailableVideoChatProviders = $ReadOnly<{|
   [providerName: string]: $ReadOnly<{| name: string, id: number |}>,
 |}>;
 
-// This is current to feature level 130.
+// This is current to feature level 140.
 export type InitialDataRealm = $ReadOnly<{|
   //
   // Keep alphabetical order. When changing this, also change our type for
@@ -176,7 +177,7 @@ export type InitialDataRealm = $ReadOnly<{|
 
   // TODO(server-5.0): Added in feat. 103; when absent, treat as
   //   CreateWebPublicStreamPolicy.Nobody.
-  realm_create_web_public_stream_policy?: CreateWebPublicStreamPolicyT,
+  realm_create_web_public_stream_policy?: CreateWebPublicStreamPolicy,
 
   realm_default_code_block_language: string | null,
 
@@ -207,10 +208,13 @@ export type InitialDataRealm = $ReadOnly<{|
   // TODO(server-5.0): Added in feat. 75, replacing realm_allow_community_topic_editing
   realm_edit_topic_policy?: number,
 
-  realm_email_address_visibility: number,
+  realm_email_address_visibility: EmailAddressVisibility,
   realm_email_auth_enabled: boolean,
   realm_email_changes_disabled: boolean,
   realm_emails_restricted_to_domains: boolean,
+
+  // TODO(server-6.0): Added in feat. 137; if absent, treat as false.
+  realm_enable_read_receipts?: boolean,
 
   // TODO(server-5.0): Added in feat. 109; if absent, treat as false.
   realm_enable_spectator_access?: boolean,
@@ -243,6 +247,8 @@ export type InitialDataRealm = $ReadOnly<{|
   // the invalid-value part, see zulip/zulip#20131.)
   realm_message_content_delete_limit_seconds: number | null,
 
+  // In 6.0 (feature level 138), the representation the server sends for "no
+  // limit" changed from 0 to `null`, and 0 became an invalid value.
   realm_message_content_edit_limit_seconds: number,
 
   // TODO(server-3.0): Special value `null` replaced with -1 in feat. 22
@@ -282,10 +288,16 @@ export type InitialDataRealm = $ReadOnly<{|
   // TODO(server-6.0): Added in feat. 129
   realm_want_advertise_in_communities_directory?: boolean,
 
-  // TODO(server-4.0): Added in feat. 33, updated with moderators option in 62
+  // TODO(server-4.0): Added in feat. 33. Updated with moderators option in
+  //   feat. 62 (Zulip 4.0).
+  // TODO(server-6.0): Stream administrators option removed in feat. 133.
   realm_wildcard_mention_policy?: number,
 
   server_avatar_changes_disabled: boolean,
+
+  // TODO(server-6.0): Added in feat. 140.
+  server_emoji_data_url?: string,
+
   server_generation: number,
   server_inline_image_preview: boolean,
   server_inline_url_embed_preview: boolean,

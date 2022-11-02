@@ -1,6 +1,7 @@
 /* @flow strict-local */
 import invariant from 'invariant';
 
+import type { ReadWrite } from '../generics';
 import type { PerAccountApplicableAction, FlagsState, Message } from '../types';
 import {
   REGISTER_COMPLETE,
@@ -12,6 +13,10 @@ import {
   ACCOUNT_SWITCH,
 } from '../actionConstants';
 import { deeperMerge } from '../utils/misc';
+import type { UserMessageFlag } from '../api/modelTypes';
+
+type ReadWriteFlagsState = $Rest<ReadWrite<$ObjMap<FlagsState, <V>(V) => ReadWrite<V>>>, { ... }>;
+type ReadWritePerFlagState = $Values<ReadWriteFlagsState>;
 
 const initialState = {
   read: {},
@@ -19,19 +24,14 @@ const initialState = {
   collapsed: {},
   mentioned: {},
   wildcard_mentioned: {},
-  summarize_in_home: {},
-  summarize_in_stream: {},
-  force_expand: {},
-  force_collapse: {},
   has_alert_word: {},
   historical: {},
-  is_me_message: {},
 };
 
 const addFlagsForMessages = (
   state: FlagsState,
   messages: $ReadOnlyArray<number>,
-  flags: $ReadOnlyArray<string>,
+  flags: $ReadOnlyArray<UserMessageFlag>,
 ): FlagsState => {
   if (messages.length === 0 || flags.length === 0) {
     return state;
@@ -40,14 +40,14 @@ const addFlagsForMessages = (
   /* $FlowFixMe[incompatible-exact] - We should ignore flags from the server
      that we don't already know about. After all, we can't have any code
      intending to do anything with them. */
-  const newState: FlagsState = {};
+  const newState: ReadWriteFlagsState = {};
 
   flags.forEach(flag => {
-    newState[flag] = { ...(state[flag] || {}) };
-
+    const perFlag: ReadWritePerFlagState = { ...(state[flag] || {}) };
     messages.forEach(message => {
-      newState[flag][message] = true;
+      perFlag[message] = true;
     });
+    newState[flag] = perFlag;
   });
 
   return {
@@ -84,14 +84,12 @@ const processFlagsForMessages = (
   /* $FlowFixMe[incompatible-exact] - We should ignore flags from the server
      that we don't already know about. After all, we can't have any code
      intending to do anything with them. */
-  const newState: FlagsState = {};
+  const newState: ReadWriteFlagsState = {};
   messages.forEach(msg => {
     (msg.flags || []).forEach(flag => {
       if (!state[flag] || !state[flag][msg.id]) {
-        if (!newState[flag]) {
-          newState[flag] = {};
-        }
-        newState[flag][msg.id] = true;
+        const perFlag: ReadWritePerFlagState = newState[flag] || (newState[flag] = {});
+        perFlag[msg.id] = true;
         stateChanged = true;
       }
     });
@@ -115,7 +113,7 @@ const eventUpdateMessageFlags = (state, action) => {
       // know about. After all, we can't have any code intending to do
       // anything with them. Flow should be complaining here:
       //   https://chat.zulip.org/#narrow/stream/243-mobile-team/topic/Flow.20spread.20bug/near/1318081
-      return { ...state, [action.flag]: {} };
+      return { ...state, [(action.flag: string)]: {} };
     }
   }
 
